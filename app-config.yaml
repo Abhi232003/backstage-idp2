@@ -1,0 +1,133 @@
+app:
+  title: Scaffolded Backstage App
+  baseUrl: http://localhost:3000
+
+organization:
+  name: ZensarIDP
+
+backend:
+  # Used for enabling authentication, secret is shared by all backend plugins
+  # See https://backstage.io/docs/auth/service-to-service-auth for
+  # information on the format
+  # auth:
+  #   keys:
+  #     - secret: ${BACKEND_SECRET}
+  baseUrl: http://localhost:7007
+  listen:
+    port: 7007
+    # Uncomment the following host directive to bind to specific interfaces
+    # host: 127.0.0.1
+  csp:
+    connect-src: ["'self'", 'http:', 'https:']
+    # Content-Security-Policy directives follow the Helmet format: https://helmetjs.github.io/#reference
+    # Default Helmet Content-Security-Policy values can be removed by setting the key to false
+  cors:
+    origin: http://localhost:3000
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+
+integrations:
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
+  
+  bitbucketCloud:
+    - username: ${BITBUCKET_USERNAME}
+      appPassword: ${BITBUCKET_APP_PASSWORD} 
+
+techdocs:
+  builder: 'local'
+  generator:
+    runIn: 'docker'
+  publisher:
+    type: 'local'
+
+auth:
+  environment: development
+  providers:
+    guest: {}
+    github:
+      development:
+        clientId: ${GITHUB_CLIENT_ID}
+        clientSecret: ${GITHUB_CLIENT_SECRET}
+        signIn:
+          resolvers:
+            - resolver: usernameMatchingUserEntityName
+    bitbucket:
+      development:
+        clientId: ${BITBUCKET_CLIENT_ID}
+        clientSecret: ${BITBUCKET_CLIENT_SECRET}
+        signIn:
+          resolvers:
+            - resolver: usernameMatchingUserEntityName
+
+scaffolder:
+  # see https://backstage.io/docs/features/software-templates/configuration for software template options
+  github:
+    visibility: public # or 'private', 'internal'
+    allowedOwners: ['ZensarIDP', 'Abhi232003'] # ZensarIDP org and Abhi232003 user
+  
+  bitbucketCloud:
+    visibility: public # or 'private'
+    allowedWorkspaces: ['zensaridp'] # Bitbucket workspace
+  
+  defaultAuthor:
+    name: Backstage Scaffolder
+    email: scaffolder@backstage.io
+  defaultCommitMessage: 'Initial commit'
+
+catalog:
+  import:
+    entityFilename: catalog-info.yaml
+    pullRequestBranchName: backstage-integration
+  rules:
+    - allow: [Component, System, API, Resource, Location]
+  locations:
+    # Local example data, file locations are relative to the backend process, typically `packages/backend`
+    - type: file
+      target: ../../examples/entities.yaml
+
+    # Local example template
+    - type: file
+      target: ../../examples/template/template.yaml
+      rules:
+        - allow: [Template]
+
+
+    # Node.js starter template
+    - type: file
+      target: ../../templates/nodejs-template/template.yaml
+      rules:
+        - allow: [Template]
+
+    # AI Pipeline Generator template
+    - type: file
+      target: ../../templates/ai-pipeline-generator.yaml
+      rules:
+        - allow: [Template]
+
+    # Local example organizational data
+    - type: file
+      target: ../../examples/org.yaml
+      rules:
+        - allow: [User, Group]
+
+    # GitHub organization discovery - discovers all repositories in your GitHub org
+    # Temporarily disabled until GithubDiscoveryProcessor is properly configured
+    # - type: github-discovery
+    #   target: https://github.com/ZensarIDP
+
+    # GitHub specific repository discovery - discovers specific repositories
+    # Add your repository URLs here
+    - type: url
+      target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/all.yaml
+    - type: url
+      target: https://github.com/Abhi232003/backstage-idp/blob/main/catalog-info.yaml
+
+# see https://backstage.io/docs/permissions/getting-started for more on the permission framework
+permission:
+  # setting this to `false` will disable permissions
+  enabled: true

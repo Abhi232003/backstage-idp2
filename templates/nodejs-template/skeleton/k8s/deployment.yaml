@@ -1,0 +1,79 @@
+{% if values.deploymentType === 'gke' %}apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${SERVICE_NAME}-${ENVIRONMENT:-dev}
+  namespace: ${GKE_NAMESPACE:-default}
+  labels:
+    app: ${SERVICE_NAME}
+    environment: ${ENVIRONMENT:-dev}
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ${SERVICE_NAME}
+      environment: ${ENVIRONMENT:-dev}
+  template:
+    metadata:
+      labels:
+        app: ${SERVICE_NAME}
+        environment: ${ENVIRONMENT:-dev}
+        version: v1
+    spec:
+      containers:
+      - name: ${SERVICE_NAME}
+        image: ${IMAGE}
+        ports:
+        - containerPort: 3001
+          name: http
+        env:
+        - name: NODE_ENV
+          value: ${ENVIRONMENT:-development}
+        - name: SERVICE_VERSION
+          value: ${ENVIRONMENT:-dev}
+        - name: PORT
+          value: "3001"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${SERVICE_NAME}-${ENVIRONMENT:-dev}
+  namespace: ${GKE_NAMESPACE:-default}
+  labels:
+    app: ${SERVICE_NAME}
+    environment: ${ENVIRONMENT:-dev}
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 3001
+    protocol: TCP
+    name: http
+  selector:
+    app: ${SERVICE_NAME}
+    environment: ${ENVIRONMENT:-dev}
+{% endif %}

@@ -1,0 +1,111 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: ai-pipeline-generator-pr
+  title: AI Pipeline Generator (Pull Request)
+  description: Generate GitHub Actions pipelines using AI and create a Pull Request for review
+  tags:
+    - recommended
+    - ai
+    - pipeline
+    - github-actions
+    - pull-request
+spec:
+  owner: platform-team
+  type: service
+  parameters:
+    - title: Repository Information
+      required:
+        - owner
+        - repo
+        - userPrompt
+      properties:
+        owner:
+          title: Repository Owner
+          type: string
+          description: The GitHub username or organization
+          default: Abhi232003
+        repo:
+          title: Repository Name
+          type: string
+          description: The name of the repository
+          default: my-test-weather-app
+        userPrompt:
+          title: What do you want the pipeline to do?
+          type: string
+          description: e.g. "Generate a GitHub Actions pipeline for Node.js with test, build, and deploy steps"
+          ui:widget: textarea
+          ui:placeholder: "Generate a GitHub Actions pipeline for this project"
+          default: Generate a GitHub Actions pipeline for this project
+  steps:
+    - id: clone
+      name: 📥 Cloning Repository
+      action: fetch:plain
+      input:
+        url: https://github.com/${{ parameters.owner }}/${{ parameters.repo }}
+        targetPath: repo
+    
+    - id: ai-generate-pipeline
+      name: 🤖 Generating Pipeline with AI
+      action: ai:generate-pipeline
+      input:
+        repoPath: repo
+        userRequest: ${{ parameters.userPrompt }}
+        openaiApiKey: 'HARDCODED'
+        pipelineFileName: generated-pipeline.yml
+        createPullRequest: true
+    
+    - id: display-results
+      name: ✅ Pull Request Created Successfully
+      action: debug:log
+      input:
+        message: |
+          ╔══════════════════════════════════════════════════════════════════════════════╗
+          ║             🎉 AI PIPELINE GENERATED & PULL REQUEST CREATED!               ║
+          ╚══════════════════════════════════════════════════════════════════════════════╝
+          
+          📁 Repository: ${{ parameters.owner }}/${{ parameters.repo }}
+          📝 File: .github/workflows/generated-pipeline.yml
+          🌿 Branch: ${{ steps['ai-generate-pipeline'].output.branchName }}
+          🔄 Pull Request: Ready for review
+          
+          ╔══════════════════════════════════════════════════════════════════════════════╗
+          ║                             📋 GENERATED PIPELINE                          ║
+          ╚══════════════════════════════════════════════════════════════════════════════╝
+          
+          ```yaml
+          ${{ steps['ai-generate-pipeline'].output.pipelineContent }}
+          ```
+          
+          ╔══════════════════════════════════════════════════════════════════════════════╗
+          ║                       🚀 REVIEW WORKFLOW - SIMPLE & CLEAN                  ║
+          ╚══════════════════════════════════════════════════════════════════════════════╝
+          
+          ✅ **APPROVE**: Review the Pull Request and merge if satisfied
+          ❌ **REJECT**: Close the PR if you want to generate a different pipeline  
+          ✏️ **MODIFY**: Edit the pipeline directly in the PR before merging
+          
+          🔗 Click "View Pull Request" below to review and merge!
+
+  output:
+    links:
+      - title: 🔍 View Pull Request
+        url: https://github.com/${{ parameters.owner }}/${{ parameters.repo }}/compare/${{ steps['ai-generate-pipeline'].output.branchName }}?expand=1
+        icon: github
+        description: "Review and merge the generated pipeline"
+      - title: 📁 View Repository
+        url: https://github.com/${{ parameters.owner }}/${{ parameters.repo }}
+        icon: github
+        description: "Navigate to your repository homepage"
+      - title: ⚡ GitHub Actions
+        url: https://github.com/${{ parameters.owner }}/${{ parameters.repo }}/actions
+        icon: catalog
+        description: "View your repository's GitHub Actions workflows"
+      - title: 🌿 View Branch
+        url: https://github.com/${{ parameters.owner }}/${{ parameters.repo }}/tree/${{ steps['ai-generate-pipeline'].output.branchName }}
+        icon: catalog
+        description: "View the generated pipeline branch"
+      - title: 🔄 Generate Another Pipeline
+        url: /create?filters%5Bkind%5D=template&filters%5Buser%5D=all&templateName=ai-pipeline-generator-pr
+        icon: scaffolder
+        description: "Create another AI-generated pipeline"

@@ -1,0 +1,134 @@
+{% if values.setupDatabase %}
+name: Database Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Database action'
+        required: true
+        default: 'setup'
+        type: choice
+        options:
+          - setup
+          - destroy
+
+env:
+  PROJECT_ID: ${{ values.project_id }}
+  REGION: ${{ values.region }}
+  DB_TYPE: ${{ values.databaseType }}
+  DB_NAME: ${{ values.dbName }}
+  DB_USER: ${{ values.dbUser }}
+  
+jobs:
+  setup-database:
+    runs-on: ubuntu-latest
+    name: Setup Database (${{ values.databaseType }})
+    # Only run if action is setup (not destroy)
+    if: github.event.inputs.action == 'setup'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ '${{' }} secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enable Cloud SQL API
+        run: |
+          echo "Enabling Cloud SQL API..."
+          gcloud services enable sqladmin.googleapis.com --project=${{ '${{' }} env.PROJECT_ID }}
+
+      - name: Create Cloud SQL MySQL Instance
+        if: ${{ '${{' }} env.DB_TYPE == 'mysql' }}
+        run: |
+          # Create MySQL instance
+          gcloud sql instances create ${{ '${{' }} env.DB_NAME }}-instance \
+            --database-version=MYSQL_8_0 \
+            --tier=db-f1-micro \
+            --region=${{ '${{' }} env.REGION }} \
+            --project=${{ '${{' }} env.PROJECT_ID }}
+
+      - name: Create Cloud SQL PostgreSQL Instance
+        if: ${{ '${{' }} env.DB_TYPE == 'postgresql' }}
+        run: |
+          # Create PostgreSQL instance
+          gcloud sql instances create ${{ '${{' }} env.DB_NAME }}-instance \
+            --database-version=POSTGRES_14 \
+            --tier=db-f1-micro \
+            --region=${{ '${{' }} env.REGION }} \
+            --project=${{ '${{' }} env.PROJECT_ID }}
+
+      - name: Create Database
+        run: |
+          gcloud sql databases create ${{ '${{' }} env.DB_NAME }} \
+            --instance=${{ '${{' }} env.DB_NAME }}-instance \
+            --project=${{ '${{' }} env.PROJECT_ID }}
+
+      - name: Create Database User
+        run: |
+          # Generate a random password
+          DB_PASSWORD=$(openssl rand -base64 12)
+          echo "Generated password for ${{ '${{' }} env.DB_USER }}"
+          
+          gcloud sql users create ${{ '${{' }} env.DB_USER }} \
+            --instance=${{ '${{' }} env.DB_NAME }}-instance \
+            --password="$DB_PASSWORD" \
+            --project=${{ '${{' }} env.PROJECT_ID }}
+          
+          echo "::add-mask::$DB_PASSWORD"
+          echo "Database setup complete!"
+          echo "Database: ${{ '${{' }} env.DB_NAME }}"
+          echo "User: ${{ '${{' }} env.DB_USER }}"
+          echo "Instance: ${{ '${{' }} env.DB_NAME }}-instance"
+          echo "Type: ${{ '${{' }} env.DB_TYPE }}"
+
+  destroy-database:
+    runs-on: ubuntu-latest
+    name: Destroy Database
+    if: github.event.inputs.action == 'destroy'
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ '${{' }} secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Delete Cloud SQL Instance
+        run: |
+          gcloud sql instances delete ${{ '${{' }} env.DB_NAME }}-instance \
+            --project=${{ '${{' }} env.PROJECT_ID }} \
+            --quiet
+
+          echo "Database instance ${{ '${{' }} env.DB_NAME }}-instance deleted successfully!"
+          echo "Type: ${{ '${{' }} env.DB_TYPE }}"
+{% else %}
+# Database setup was not selected during template creation
+# This is a placeholder file to maintain GitHub Actions structure
+# To add database functionality later, regenerate the template with database enabled
+
+name: Database Setup (Disabled)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Database Not Configured
+        run: |
+          echo "ℹ️ Database was not configured during template creation"
+          echo "To enable database functionality:"
+          echo "1. Use the Backstage template again with 'Setup Database' enabled, OR"
+          echo "2. Manually configure your database infrastructure"
+          echo "3. Update this workflow with your database setup steps"
+{% endif %}

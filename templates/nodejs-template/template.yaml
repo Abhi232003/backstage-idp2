@@ -1,0 +1,293 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: nodejs-starter
+  title: Node.js Service
+  description: Create a new Node.js microservice
+  tags:
+    - recommended
+    - nodejs
+    - javascript
+spec:
+  owner: platform-team
+  type: service
+  parameters:
+    - title: 📝 Application Details
+      description: Provide basic information about your Node.js service. This information will be used to configure your project and repository.
+      required:
+        - component_id
+        - owner
+      properties:
+        component_id:
+          title: 🏷️ Service Name
+          type: string
+          description: Unique identifier for your service (will be used as repository name)
+          pattern: '^([a-z0-9\-]+)$'
+          ui:help: "Use lowercase letters, numbers, and hyphens only. No spaces or special characters."
+        description:
+          title: 📄 Description
+          type: string
+          description: Brief description of what this service does (will appear in README and catalog)
+          ui:widget: textarea
+          ui:options:
+            rows: 3
+        owner:
+          title: 👥 Team Owner
+          type: string
+          description: Select the team or group that will own and maintain this service
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+    - title: 📂 Source Code Management
+      description: Configure where your code will be stored. Select your repository provider and organization.
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: 🏠 Repository Location
+          type: string
+          description: Choose where to create your new repository
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - ZensarIDP
+
+    - title: ☁️ Cloud Provider Configuration
+      description: Configure your cloud infrastructure settings. Select your preferred cloud provider and basic project configuration.
+      required:
+        - cloudProvider
+        - project_id
+      properties:
+        cloudProvider:
+          title: 🏢 Cloud Service Provider
+          type: string
+          description: Select your cloud provider for hosting the application
+          default: gcp
+          enum:
+            - gcp
+          enumNames:
+            - Google Cloud Platform (GCP)
+        project_id:
+          title: 📋 Google Cloud Project ID
+          type: string
+          description: Your Google Cloud Project ID where resources will be created
+          default: dev-zephyr-352206
+
+    - title: 🚀 Deployment Target Configuration
+      description: Choose how and where you want to deploy your application. Different deployment types offer various benefits in terms of scalability and management.
+      required:
+        - deploymentType
+      properties:
+        deploymentType:
+          title: 🎯 Deployment Type
+          type: string
+          description: Choose your preferred deployment strategy
+          default: cloudrun
+          enum:
+            - cloudrun
+            - gke
+          enumNames:
+            - Cloud Run (Serverless - Fully managed, auto-scaling)
+            - Google Kubernetes Engine (GKE - Container orchestration, more control)
+      dependencies:
+        deploymentType:
+          oneOf:
+            - properties:
+                deploymentType:
+                  const: cloudrun
+                region:
+                  title: 🌍 Cloud Run Region
+                  type: string
+                  description: Select the primary region for your Cloud Run service deployment
+                  default: asia-east1
+                  enum:
+                    - asia-south1
+                    - us-central1
+                    - europe-west1
+                    - us-east1
+                  enumNames:
+                    - 🇮🇳 Asia South 1 (Mumbai) - Low latency for India/South Asia
+                    - 🇺🇸 US Central 1 (Iowa) - Balanced US coverage
+                    - 🇪🇺 Europe West 1 (Belgium) - GDPR compliant EU region
+                    - 🇺🇸 US East 1 (South Carolina) - Low latency for US East Coast
+              required:
+                - region
+            - properties:
+                deploymentType:
+                  const: gke
+                gkeClusterName:
+                  title: ⚓ GKE Cluster Name
+                  type: string
+                  description: Name of your existing Google Kubernetes Engine cluster
+                  default: zen-idp-cluster
+                gkeRegion:
+                  title: 🌍 GKE Cluster Region
+                  type: string
+                  description: Region/Zone where your GKE cluster is located
+                  default: asia-east1-a
+                  enum:
+                    - asia-east1-a
+                    - asia-south1-a
+                    - us-central1-a
+                    - europe-west1-a
+                    - us-east1-a
+                  enumNames:
+                    - 🇹🇼 Asia East 1-A (Taiwan) - Low latency for Asia Pacific
+                    - 🇮🇳 Asia South 1-A (Mumbai) - Low latency for India/South Asia
+                    - 🇺🇸 US Central 1-A (Iowa) - Balanced US coverage
+                    - 🇪🇺 Europe West 1-A (Belgium) - GDPR compliant EU region
+                    - 🇺🇸 US East 1-A (South Carolina) - Low latency for US East Coast
+                gkeNamespace:
+                  title: 📦 Kubernetes Namespace
+                  type: string
+                  description: Kubernetes namespace where your application will be deployed
+                  default: default
+                  pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+              required:
+                - gkeClusterName
+                - gkeRegion
+                - gkeNamespace
+
+    - title: 🗄️ Database Configuration
+      description: Configure database settings for your application. You can choose to include a database or skip this step if your service doesn't require persistent storage.
+      properties:
+        setupDatabase:
+          title: 📊 Do you need a database?
+          type: boolean
+          description: Select whether your application requires a database for persistent data storage
+          default: false
+          ui:widget: radio
+          ui:options:
+            radioStyle: vertical
+          enum:
+            - true
+            - false
+          enumNames:
+            - "✅ Yes, I need a database"
+            - "❌ No, my service doesn't need a database"
+      dependencies:
+        setupDatabase:
+          oneOf:
+            - properties:
+                setupDatabase:
+                  const: false
+            - properties:
+                setupDatabase:
+                  const: true
+                databaseType:
+                  title: 🏗️ Database Type
+                  type: string
+                  description: Choose your preferred database engine
+                  default: mysql
+                  enum:
+                    - mysql
+                    - postgresql
+                  enumNames:
+                    - 🐬 MySQL - Popular, reliable, great for web applications
+                    - 🐘 PostgreSQL - Advanced features, excellent for complex queries
+                  ui:widget: radio
+                  ui:options:
+                    radioStyle: vertical
+                dbName:
+                  title: 📋 Database Name
+                  type: string
+                  description: Name of the database that will be created
+                  default: appdb
+                  pattern: '^[a-z][a-z0-9_]*$'
+                  ui:help: "Use lowercase letters, numbers, and underscores only. Must start with a letter."
+                dbUser:
+                  title: 👤 Database Username
+                  type: string
+                  description: Username for database access (application user)
+                  default: appuser
+                  pattern: '^[a-z][a-z0-9_]*$'
+                  ui:help: "Use lowercase letters, numbers, and underscores only. Must start with a letter."
+              required:
+                - databaseType
+                - dbName
+                - dbUser
+
+  steps:
+    - id: template
+      name: Fetch Skeleton + Template
+      action: fetch:template
+      input:
+        url: ./skeleton
+        replace: true
+        values:
+          component_id: ${{ parameters.component_id }}
+          description: ${{ parameters.description }}
+          destination: ${{ parameters.repoUrl | parseRepoUrl }}
+          owner: ${{ parameters.owner }}
+          project_id: ${{ parameters.project_id }}
+          region: ${{ parameters.region }}
+          cloudProvider: ${{ parameters.cloudProvider }}
+          deploymentType: ${{ parameters.deploymentType }}
+          gkeClusterName: ${{ parameters.gkeClusterName }}
+          gkeRegion: ${{ parameters.gkeRegion }}
+          gkeNamespace: ${{ parameters.gkeNamespace }}
+          setupDatabase: ${{ parameters.setupDatabase }}
+          databaseType: ${{ parameters.databaseType }}
+          dbName: ${{ parameters.dbName }}
+          dbUser: ${{ parameters.dbUser }}
+
+    - id: setup-github-workflows
+      name: Setup GitHub Workflows
+      action: fetch:template
+      input:
+        url: ./skeleton/ci-cd/github/workflows
+        targetPath: .github/workflows
+        values:
+          component_id: ${{ parameters.component_id }}
+          project_id: ${{ parameters.project_id }}
+          region: ${{ parameters.region }}
+          deploymentType: ${{ parameters.deploymentType }}
+          gkeClusterName: ${{ parameters.gkeClusterName }}
+          gkeRegion: ${{ parameters.gkeRegion }}
+          gkeNamespace: ${{ parameters.gkeNamespace }}
+          setupDatabase: ${{ parameters.setupDatabase }}
+          databaseType: ${{ parameters.databaseType }}
+          dbName: ${{ parameters.dbName }}
+          dbUser: ${{ parameters.dbUser }}
+
+    - id: publish-github
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        description: This is ${{ parameters.component_id }}
+        repoUrl: ${{ parameters.repoUrl }}
+        defaultBranch: main
+        repoVisibility: public
+        protectDefaultBranch: false
+        gitCommitMessage: 'Initial commit'
+        gitAuthorName: 'Backstage Scaffolder'
+        gitAuthorEmail: 'scaffolder@backstage.io'
+
+
+    - id: ai-generate-pipeline
+      name: Generate Pipeline with AI
+      action: ai:generate-pipeline
+      input:
+        repoPath: ${{ steps['publish-github'].output.repoPath || parameters.repoPath || '.' }}
+        userRequest: Generate a GitHub Actions pipeline for this project
+        openaiApiKey: 'HARDCODED' # ignored in code, but required by schema
+        pipelineFileName: generated-pipeline.yml
+
+    - id: register-github
+      name: Register in Catalog (GitHub)
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-github'].output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish-github'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: component:default/${{ parameters.component_id }}

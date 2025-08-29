@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${{ values.component_id }}
+  namespace: ${{ values.gkeNamespace }}
+  labels:
+    app: ${{ values.component_id }}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ${{ values.component_id }}
+  template:
+    metadata:
+      labels:
+        app: ${{ values.component_id }}
+    spec:
+      containers:
+      - name: ${{ values.component_id }}
+        image: ${{ values.region }}-docker.pkg.dev/${{ values.project_id }}/${{ values.component_id }}/${{ values.component_id }}:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: OPENWEATHER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: openweather-api-key
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${{ values.component_id }}-service
+  namespace: ${{ values.gkeNamespace }}
+spec:
+  selector:
+    app: ${{ values.component_id }}
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: LoadBalancer

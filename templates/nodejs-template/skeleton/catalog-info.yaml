@@ -1,0 +1,24 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.component_id }}
+  description: ${{ values.description }}
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner }}/${{ values.destination.repo }}
+    github.com/workflows: ci.yml
+    backstage.io/environments: 'dev,staging,prod'
+  tags:
+    - nodejs
+    - microservice
+    {%- if values.deploymentType == "cloudrun" %}
+    - cloud-run
+    {%- elif values.deploymentType == "gke" %}
+    - gke
+    - kubernetes
+    {%- endif %}
+    - multi-environment
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  system: ${{ values.component_id }}-system

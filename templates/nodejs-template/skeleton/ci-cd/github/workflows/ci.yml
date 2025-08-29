@@ -1,0 +1,201 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ values.component_id }}
+  PROJECT_ID: ${{ values.project_id }}
+  SERVICE_NAME: ${{ values.component_id }}
+  REGION: ${{ values.region }}
+  DEPLOYMENT_TYPE: ${{ values.deploymentType }}
+  # GKE specific variables (only used if deployment type is GKE)
+  GKE_CLUSTER: ${{ values.gkeClusterName }}
+  GKE_ZONE: ${{ values.gkeRegion }}
+  GKE_NAMESPACE: ${{ values.gkeNamespace }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run linting (with auto-fix, non-blocking)
+        run: |
+          npm run lint:fix || true
+          npm run lint || echo "Linting completed with warnings/errors but not blocking build"
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history to count commits
+
+      - name: Check if this is first push
+        id: check_commits
+        run: |
+          commit_count=$(git rev-list --count HEAD)
+          echo "Total commits: $commit_count"
+          
+          if [ "$commit_count" -le 1 ]; then
+            echo "This is the first push - skipping deployment"
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          else
+            echo "This is push #$commit_count - proceeding with deployment"
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Authenticate to Google Cloud
+        if: steps.check_commits.outputs.should_deploy == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ '${{' }} secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        if: steps.check_commits.outputs.should_deploy == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        if: steps.check_commits.outputs.should_deploy == 'true'
+        run: |
+          gcloud auth configure-docker ${{ '${{' }} env.REGION }}-docker.pkg.dev
+
+      - name: Enable Required APIs
+        if: steps.check_commits.outputs.should_deploy == 'true'
+        run: |
+          echo "🔌 Enabling required Google Cloud APIs..."
+          
+          # Enable APIs one by one with error handling
+          apis=("artifactregistry.googleapis.com" "cloudbuild.googleapis.com")
+          
+          # Add deployment-specific APIs
+          if [ "${{ '${{' }} env.DEPLOYMENT_TYPE }}" = "cloudrun" ]; then
+            apis+=("cloudrun.googleapis.com")
+          elif [ "${{ '${{' }} env.DEPLOYMENT_TYPE }}" = "gke" ]; then
+            apis+=("container.googleapis.com")
+          fi
+          
+          for api in "${apis[@]}"; do
+            echo "Enabling $api..."
+            if gcloud services enable "$api" --project=${{ '${{' }} env.PROJECT_ID }}; then
+              echo "✅ $api enabled successfully"
+            else
+              echo "⚠️ Failed to enable $api - may not have permission or already enabled"
+            fi
+          done
+          
+          echo "✅ API enablement completed"
+
+      - name: Setup Artifact Registry Repository
+        if: steps.check_commits.outputs.should_deploy == 'true'
+        run: |
+          echo "📦 Setting up Artifact Registry repository..."
+          
+          # Check if repository exists and create if needed
+          if gcloud artifacts repositories describe ${{ '${{' }} env.IMAGE_NAME }} \
+            --location=${{ '${{' }} env.REGION }} \
+            --project=${{ '${{' }} env.PROJECT_ID }} >/dev/null 2>&1; then
+            echo "✅ Repository ${{ '${{' }} env.IMAGE_NAME }} already exists"
+          else
+            echo "Creating Artifact Registry repository..."
+            gcloud artifacts repositories create ${{ '${{' }} env.IMAGE_NAME }} \
+              --repository-format=docker \
+              --location=${{ '${{' }} env.REGION }} \
+              --project=${{ '${{' }} env.PROJECT_ID }} \
+              --description="Auto-created for ${{ '${{' }} env.IMAGE_NAME }}" || {
+              echo "⚠️ Repository creation failed - checking if it exists..."
+              gcloud artifacts repositories describe ${{ '${{' }} env.IMAGE_NAME }} \
+                --location=${{ '${{' }} env.REGION }} \
+                --project=${{ '${{' }} env.PROJECT_ID }} >/dev/null 2>&1 || {
+                echo "❌ Repository creation failed and doesn't exist"
+                exit 1
+              }
+            }
+            echo "✅ Repository setup completed"
+          fi
+
+      - name: Build and Push to Artifact Registry
+        if: steps.check_commits.outputs.should_deploy == 'true'
+        run: |
+          echo "🔨 Building Docker image..."
+          docker build -t ${{ '${{' }} env.REGION }}-docker.pkg.dev/${{ '${{' }} env.PROJECT_ID }}/${{ '${{' }} env.IMAGE_NAME }}/${{ '${{' }} env.IMAGE_NAME }}:${{ '${{' }} github.sha }} .
+          
+          # Also tag as latest for easier deployment
+          docker tag ${{ '${{' }} env.REGION }}-docker.pkg.dev/${{ '${{' }} env.PROJECT_ID }}/${{ '${{' }} env.IMAGE_NAME }}/${{ '${{' }} env.IMAGE_NAME }}:${{ '${{' }} github.sha }} \
+            ${{ '${{' }} env.REGION }}-docker.pkg.dev/${{ '${{' }} env.PROJECT_ID }}/${{ '${{' }} env.IMAGE_NAME }}/${{ '${{' }} env.IMAGE_NAME }}:latest
+          
+          echo "📤 Pushing Docker image to Artifact Registry..."
+          docker push ${{ '${{' }} env.REGION }}-docker.pkg.dev/${{ '${{' }} env.PROJECT_ID }}/${{ '${{' }} env.IMAGE_NAME }}/${{ '${{' }} env.IMAGE_NAME }}:${{ '${{' }} github.sha }}
+          docker push ${{ '${{' }} env.REGION }}-docker.pkg.dev/${{ '${{' }} env.PROJECT_ID }}/${{ '${{' }} env.IMAGE_NAME }}/${{ '${{' }} env.IMAGE_NAME }}:latest
+          
+          echo "✅ Build and push completed successfully"
+
+      - name: Deploy to Cloud Run
+        if: ${{ '${{' }} env.DEPLOYMENT_TYPE == 'cloudrun' && steps.check_commits.outputs.should_deploy == 'true' }}
+        run: |
+          gcloud run deploy ${{ '${{' }} env.SERVICE_NAME }} \
+            --image ${{ '${{' }} env.REGION }}-docker.pkg.dev/${{ '${{' }} env.PROJECT_ID }}/${{ '${{' }} env.IMAGE_NAME }}/${{ '${{' }} env.IMAGE_NAME }}:${{ '${{' }} github.sha }} \
+            --platform managed \
+            --region ${{ '${{' }} env.REGION }} \
+            --allow-unauthenticated \
+            --port 3000 \
+            --set-env-vars NODE_ENV=production,OPENWEATHER_API_KEY=${{ '${{' }} secrets.OPENWEATHER_API_KEY }}
+
+      - name: Install GKE gcloud auth plugin
+        if: ${{ '${{' }} env.DEPLOYMENT_TYPE == 'gke' && steps.check_commits.outputs.should_deploy == 'true' }}
+        run: |
+          echo "Installing GKE gcloud auth plugin..."
+          gcloud components install gke-gcloud-auth-plugin --quiet
+          echo "✅ GKE gcloud auth plugin installed"
+
+      - name: Get GKE credentials
+        if: ${{ '${{' }} env.DEPLOYMENT_TYPE == 'gke' && steps.check_commits.outputs.should_deploy == 'true' }}
+        run: |
+          echo "Getting GKE cluster credentials..."
+          gcloud container clusters get-credentials ${{ '${{' }} env.GKE_CLUSTER }} \
+            --zone ${{ '${{' }} env.GKE_ZONE }} \
+            --project ${{ '${{' }} env.PROJECT_ID }}
+          
+          echo "✅ GKE credentials configured"
+
+      - name: Deploy to GKE
+        if: ${{ '${{' }} env.DEPLOYMENT_TYPE == 'gke' && steps.check_commits.outputs.should_deploy == 'true' }}
+        run: |
+          kubectl create namespace ${{ '${{' }} env.GKE_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Create or update the secret with API key
+          kubectl create secret generic app-secrets \
+            --from-literal=openweather-api-key=${{ '${{' }} secrets.OPENWEATHER_API_KEY }} \
+            --namespace=${{ '${{' }} env.GKE_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Apply the Kubernetes deployment
+          kubectl apply -f deploy/kubernetes.yaml -n ${{ '${{' }} env.GKE_NAMESPACE }}
+          
+          # Update the image
+          kubectl set image deployment/${{ '${{' }} env.SERVICE_NAME }} \
+            ${{ '${{' }} env.SERVICE_NAME }}=${{ '${{' }} env.REGION }}-docker.pkg.dev/${{ '${{' }} env.PROJECT_ID }}/${{ '${{' }} env.IMAGE_NAME }}/${{ '${{' }} env.IMAGE_NAME }}:${{ '${{' }} github.sha }} \
+            -n ${{ '${{' }} env.GKE_NAMESPACE }}
+          
+          # Wait for rollout
+          kubectl rollout status deployment/${{ '${{' }} env.SERVICE_NAME }} -n ${{ '${{' }} env.GKE_NAMESPACE }}

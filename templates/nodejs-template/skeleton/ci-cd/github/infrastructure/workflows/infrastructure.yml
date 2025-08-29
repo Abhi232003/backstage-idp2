@@ -1,0 +1,89 @@
+# Infrastructure Provisioning Pipeline for ${{ values.component_id }}
+# This workflow provisions cloud infrastructure based on the selected options
+# Database: ${{ values.infraDatabase }}
+# Storage: ${{ values.infraStorage }}
+
+name: Infrastructure Provisioning
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to provision infrastructure for'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+  push:
+    branches: [ main ]
+    paths:
+      - 'infrastructure/**'
+
+env:
+  SERVICE_NAME: ${{ values.component_id }}
+  TF_VAR_service_name: ${{ values.component_id }}
+  TF_VAR_region: us-central1
+
+jobs:
+  provision-infrastructure:
+    runs-on: ubuntu-latest
+    name: Provision Infrastructure
+    
+    strategy:
+      matrix:
+        environment: [dev, staging, prod]
+    
+    environment: ${{ '${{' }} matrix.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ '${{' }} secrets[format('GCP_SA_KEY_{0}', upper(matrix.environment))] || secrets.GCP_SA_KEY }}
+
+      - name: Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set environment variables
+        run: |
+          echo "TF_VAR_project_id=${{ '${{' }} secrets[format('GCP_PROJECT_ID_{0}', upper(matrix.environment))] || secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
+          echo "TF_VAR_environment=${{ '${{' }} matrix.environment }}" >> $GITHUB_ENV
+          echo "TF_VAR_database_type=${{ values.infraDatabase }}" >> $GITHUB_ENV
+          echo "TF_VAR_enable_storage=${{ values.infraStorage }}" >> $GITHUB_ENV
+
+      - name: Initialize Terraform
+        working-directory: ./infrastructure
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ '${{' }} env.TF_VAR_project_id }}-terraform-state" \
+            -backend-config="prefix=${{ '${{' }} env.SERVICE_NAME }}/${{ '${{' }} matrix.environment }}"
+
+      - name: Plan Terraform
+        working-directory: ./infrastructure
+        run: terraform plan -out=tfplan
+
+      - name: Apply Terraform
+        working-directory: ./infrastructure
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        run: terraform apply -auto-approve tfplan
+
+      - name: Output infrastructure details
+        working-directory: ./infrastructure
+        run: terraform output -json > ../infrastructure-outputs-${{ '${{' }} matrix.environment }}.json
+
+      - name: Upload infrastructure outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-outputs-${{ '${{' }} matrix.environment }}
+          path: infrastructure-outputs-${{ '${{' }} matrix.environment }}.json

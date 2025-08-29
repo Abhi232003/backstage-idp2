@@ -1,0 +1,38 @@
+---
+# https://backstage.io/docs/features/software-catalog/descriptor-format#kind-user
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: guest
+spec:
+  memberOf: [guests]
+---
+# GitHub User - Add your GitHub username here
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: Abhi232003
+  annotations:
+    github.com/user-login: Abhi232003
+spec:
+  profile:
+    displayName: Abhi232003
+  memberOf: [developers]
+---
+# https://backstage.io/docs/features/software-catalog/descriptor-format#kind-group
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: guests
+spec:
+  type: team
+  children: []
+---
+# Developers group
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: developers
+spec:
+  type: team
+  children: []
