@@ -32,11 +32,11 @@ backend:
 integrations:
   github:
     - host: github.com
-      token: ${GITHUB_TOKEN}
+      token: 
   
   bitbucketCloud:
-    - username: ${BITBUCKET_USERNAME}
-      appPassword: ${BITBUCKET_APP_PASSWORD} 
+    - username: abhi232003-admin
+      appPassword: 
 
 techdocs:
   builder: 'local'
@@ -51,8 +51,8 @@ auth:
     guest: {}
     github:
       development:
-        clientId: ${GITHUB_CLIENT_ID}
-        clientSecret: ${GITHUB_CLIENT_SECRET}
+        clientId: 
+        clientSecret: 
         signIn:
           resolvers:
             - resolver: usernameMatchingUserEntityName

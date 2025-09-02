@@ -268,15 +268,6 @@ spec:
         gitAuthorEmail: 'scaffolder@backstage.io'
 
 
-    - id: ai-generate-pipeline
-      name: Generate Pipeline with AI
-      action: ai:generate-pipeline
-      input:
-        repoPath: ${{ steps['publish-github'].output.repoPath || parameters.repoPath || '.' }}
-        userRequest: Generate a GitHub Actions pipeline for this project
-        openaiApiKey: 'HARDCODED' # ignored in code, but required by schema
-        pipelineFileName: generated-pipeline.yml
-
     - id: register-github
       name: Register in Catalog (GitHub)
       action: catalog:register

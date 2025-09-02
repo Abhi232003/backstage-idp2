@@ -39,144 +39,202 @@ export const createAiGeneratePipelineAction = (options: { githubToken?: string }
     
     // Resolve the repo path relative to the workspace directory
     const absoluteRepoPath = path.resolve(ctx.workspacePath, repoPath);
-    ctx.logger.info(`Detecting project type in ${absoluteRepoPath}`);
+    ctx.logger.info(`🔍 Detecting project type in ${absoluteRepoPath}`);
     
     const summaryObj = detectProject(absoluteRepoPath);
     const summary = JSON.stringify(summaryObj, null, 2);
-    ctx.logger.info(`Project summary: ${summary}`);
     
-    ctx.logger.info('Calling OpenAI to generate pipeline YAML...');
-    const pipelineYaml = await generatePipelineYAML({ summary, userRequest, openaiApiKey });
-    ctx.logger.info('Pipeline YAML generated.');
+    // Enhanced logging for debugging
+    ctx.logger.info(`📊 Project Analysis Complete:`);
+    ctx.logger.info(`   Type: ${summaryObj.type}`);
+    ctx.logger.info(`   Framework: ${summaryObj.framework || 'None detected'}`);
+    ctx.logger.info(`   Build Tool: ${summaryObj.buildTool || 'None detected'}`);
+    ctx.logger.info(`   Has Docker: ${summaryObj.hasDocker}`);
+    ctx.logger.info(`   Has Tests: ${summaryObj.hasTests}`);
+    ctx.logger.info(`   Key Dependencies: ${Object.keys(summaryObj.dependencies).slice(0, 5).join(', ') || 'None'}`);
     
-    // Always log the generated pipeline for review
-    ctx.logger.info(`Generated pipeline:\n${pipelineYaml}`);
+    ctx.logger.info(`🤖 Generating AI pipeline for user request: "${userRequest}"`);
     
-    // Save to .github/workflows/ directory
-    const workflowsDir = path.join(absoluteRepoPath, '.github', 'workflows');
-    await fs.ensureDir(workflowsDir);
-    const filePath = path.join(workflowsDir, pipelineFileName);
-    await fs.writeFile(filePath, pipelineYaml);
-    ctx.logger.info(`Pipeline YAML written to ${filePath}`);
-    
-    let pullRequestCreated = false;
-    let branchName = '';
-    
-    // If createPullRequest is true, create a PR using GitHub API
-    if (createPullRequest && owner && repo) {
-      try {
-        // Use GitHub token from options or environment
-        const githubToken = options.githubToken;
-        
-        if (!githubToken) {
-          throw new Error('GitHub token not available. Please configure GitHub integration in app-config.yaml');
-        }
-        
-        const octokit = new Octokit({
-          auth: githubToken,
-        });
-        
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        branchName = `ai-pipeline-${timestamp}`;
-        
-        // Get the main branch reference
-        const { data: mainBranch } = await octokit.rest.repos.getBranch({
-          owner,
-          repo,
-          branch: 'main',
-        });
-        
-        // Create a new branch
-        await octokit.rest.git.createRef({
-          owner,
-          repo,
-          ref: `refs/heads/${branchName}`,
-          sha: mainBranch.commit.sha,
-        });
-        
-        // Get the current file content to get the blob SHA if it exists
-        let existingFileSha = null;
+    try {
+      // Build repository URL if owner and repo are provided
+      const repositoryUrl = owner && repo ? `https://github.com/${owner}/${repo}` : undefined;
+      
+      const pipelineYaml = await generatePipelineYAML({ 
+        summary, 
+        userRequest, 
+        openaiApiKey, 
+        repositoryUrl 
+      });
+      ctx.logger.info('✅ Pipeline YAML generated successfully.');
+      
+      // Enhanced pipeline preview (first 10 lines)
+      const previewLines = pipelineYaml.split('\n').slice(0, 10).join('\n');
+      ctx.logger.info(`📄 Pipeline Preview:\n${previewLines}${pipelineYaml.split('\n').length > 10 ? '\n...' : ''}`);
+      
+      // Save to .github/workflows/ directory
+      const workflowsDir = path.join(absoluteRepoPath, '.github', 'workflows');
+      await fs.ensureDir(workflowsDir);
+      const filePath = path.join(workflowsDir, pipelineFileName);
+      await fs.writeFile(filePath, pipelineYaml);
+      ctx.logger.info(`💾 Pipeline YAML written to ${filePath}`);
+      
+      let pullRequestCreated = false;
+      let branchName = '';
+      
+      // If createPullRequest is true, create a PR using GitHub API
+      if (createPullRequest && owner && repo) {
         try {
-          const { data: existingFile } = await octokit.rest.repos.getContent({
+          // Use GitHub token from options or environment
+          const githubToken = options.githubToken;
+          
+          if (!githubToken) {
+            throw new Error('GitHub token not available. Please configure GitHub integration in app-config.yaml');
+          }
+          
+          const octokit = new Octokit({
+            auth: githubToken,
+          });
+          
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          branchName = `ai-pipeline-${timestamp}`;
+          
+          ctx.logger.info(`🌿 Creating branch: ${branchName}`);
+          
+          // Get the main branch reference
+          const { data: mainBranch } = await octokit.rest.repos.getBranch({
+            owner,
+            repo,
+            branch: 'main',
+          });
+          
+          // Create a new branch
+          await octokit.rest.git.createRef({
+            owner,
+            repo,
+            ref: `refs/heads/${branchName}`,
+            sha: mainBranch.commit.sha,
+          });
+          
+          // Get the current file content to get the blob SHA if it exists
+          let existingFileSha = null;
+          try {
+            const { data: existingFile } = await octokit.rest.repos.getContent({
+              owner,
+              repo,
+              path: `.github/workflows/${pipelineFileName}`,
+              ref: branchName,
+            });
+            if ('sha' in existingFile) {
+              existingFileSha = existingFile.sha;
+            }
+          } catch (error) {
+            // File doesn't exist, which is fine
+          }
+          
+          // Create or update the file
+          await octokit.rest.repos.createOrUpdateFileContents({
             owner,
             repo,
             path: `.github/workflows/${pipelineFileName}`,
-            ref: branchName,
-          });
-          if ('sha' in existingFile) {
-            existingFileSha = existingFile.sha;
-          }
-        } catch (error) {
-          // File doesn't exist, which is fine
-        }
-        
-        // Create or update the file
-        await octokit.rest.repos.createOrUpdateFileContents({
-          owner,
-          repo,
-          path: `.github/workflows/${pipelineFileName}`,
-          message: `Add AI-generated GitHub Actions pipeline
+            message: `🤖 Add AI-generated GitHub Actions pipeline
 
 Generated using Backstage AI Pipeline Generator
-Requested features: ${userRequest}
+Project Type: ${summaryObj.type}${summaryObj.framework ? ` (${summaryObj.framework})` : ''}
+User Request: ${userRequest}
 
-File: .github/workflows/${pipelineFileName}
+Features:
+- Uses Google Artifact Registry for container images
+- Tailored for ${summaryObj.type} projects
+- Includes ${summaryObj.hasTests ? 'testing and ' : ''}deployment steps
+${summaryObj.hasDocker ? '- Containerized deployment ready' : ''}
+
 Generated on: ${new Date().toLocaleString()}`,
-          content: Buffer.from(pipelineYaml).toString('base64'),
-          branch: branchName,
-          sha: existingFileSha || undefined,
-        });
-        
-        // Create the pull request
-        const { data: pullRequest } = await octokit.rest.pulls.create({
-          owner,
-          repo,
-          title: `🤖 Add AI-generated GitHub Actions pipeline`,
-          head: branchName,
-          base: 'main',
-          body: `## 🤖 AI-Generated GitHub Actions Pipeline
+            content: Buffer.from(pipelineYaml).toString('base64'),
+            branch: branchName,
+            sha: existingFileSha || undefined,
+          });
+          
+          // Create the pull request with enhanced description
+          const { data: pullRequest } = await octokit.rest.pulls.create({
+            owner,
+            repo,
+            title: `🤖 Add AI-generated ${summaryObj.type} pipeline${summaryObj.framework ? ` for ${summaryObj.framework}` : ''}`,
+            head: branchName,
+            base: 'main',
+            body: `## 🤖 AI-Generated GitHub Actions Pipeline
 
-This pull request adds a new GitHub Actions pipeline generated by the Backstage AI Pipeline Generator.
+This pull request adds a new GitHub Actions pipeline generated by the Backstage AI Pipeline Generator, specifically tailored for your ${summaryObj.type} project.
 
-### 📋 Details
+### 📋 Project Analysis
+- **Project Type:** ${summaryObj.type}
+- **Framework:** ${summaryObj.framework || 'Not detected'}
+- **Build Tool:** ${summaryObj.buildTool || 'Standard'}
+- **Has Docker:** ${summaryObj.hasDocker ? '✅ Yes' : '❌ No'}
+- **Has Tests:** ${summaryObj.hasTests ? '✅ Yes' : '❌ No'}
 - **Generated on:** ${new Date().toLocaleString()}
-- **Requested features:** ${userRequest}
-- **File:** \`.github/workflows/${pipelineFileName}\`
 
-### 🎯 What this pipeline does
-The pipeline was generated based on your project structure and requirements. Please review the workflow and make any necessary adjustments before merging.
+### 🎯 User Request
+> ${userRequest}
 
-### 🔍 Review checklist
-- [ ] Pipeline triggers are appropriate
+### 🚀 Pipeline Features
+- **Container Registry:** Google Artifact Registry (modern replacement for GCR)
+- **Authentication:** Secure GCP service account integration
+- **Build Process:** Optimized for ${summaryObj.type} projects
+${summaryObj.hasTests ? '- **Testing:** Automated test execution before deployment' : ''}
+${summaryObj.hasDocker ? '- **Containerization:** Docker build and push to Artifact Registry' : ''}
+- **Deployment:** Ready for Google Cloud Run or GKE
+- **Security:** Uses GitHub secrets for sensitive data
+
+### 🔧 Required Setup
+Before merging, ensure these secrets are configured in your repository settings:
+
+| Secret Name | Description | Required |
+|-------------|-------------|----------|
+| \`GCP_PROJECT_ID\` | Your Google Cloud Project ID | ✅ |
+| \`GCP_REGION\` | Target GCP region (e.g., us-central1) | ✅ |
+| \`GCP_SA_KEY\` | Service Account JSON key with required permissions | ✅ |
+
+### 🔍 Review Checklist
+- [ ] Pipeline triggers match your workflow needs
 - [ ] Required secrets are configured in repository settings
-- [ ] Build and deployment steps match your requirements
-- [ ] Environment variables are correctly set
+- [ ] Build and deployment steps are appropriate for your project
+- [ ] Environment variables are correctly configured
+- [ ] Artifact Registry repository exists in your GCP project
+
+### 📄 File Location
+\`.github/workflows/${pipelineFileName}\`
 
 ---
-*Generated by Backstage AI Pipeline Generator*`,
-        });
-        
-        pullRequestCreated = true;
-        ctx.logger.info(`✅ Pull Request created successfully!`);
-        ctx.logger.info(`🔗 PR URL: ${pullRequest.html_url}`);
-        ctx.logger.info(`🌿 Branch: ${branchName}`);
-        
-      } catch (error) {
-        ctx.logger.warn(`Failed to create Pull Request via GitHub API: ${error}. Pipeline saved locally for manual PR creation.`);
+*Generated by Backstage AI Pipeline Generator v2.0*
+*🎯 Tailored specifically for ${summaryObj.type} projects*`,
+          });
+          
+          pullRequestCreated = true;
+          ctx.logger.info(`✅ Pull Request created successfully!`);
+          ctx.logger.info(`🔗 PR URL: ${pullRequest.html_url}`);
+          ctx.logger.info(`🌿 Branch: ${branchName}`);
+          
+        } catch (error) {
+          ctx.logger.warn(`❌ Failed to create Pull Request via GitHub API: ${error}. Pipeline saved locally for manual PR creation.`);
+          pullRequestCreated = false;
+        }
+      } else if (createPullRequest) {
+        ctx.logger.warn('⚠️ Pull Request creation skipped: missing owner, repo parameters');
         pullRequestCreated = false;
       }
-    } else if (createPullRequest) {
-      ctx.logger.warn('Pull Request creation skipped: missing owner, repo parameters');
-      pullRequestCreated = false;
-    }
-    
-    // Return output values for template use
-    ctx.output('pipelineContent', pipelineYaml);
-    ctx.output('filePath', filePath);
-    ctx.output('projectSummary', summary);
-    ctx.output('pullRequestCreated', pullRequestCreated);
-    if (branchName) {
-      ctx.output('branchName', branchName);
+      
+      // Return output values for template use
+      ctx.output('pipelineContent', pipelineYaml);
+      ctx.output('filePath', filePath);
+      ctx.output('projectSummary', summary);
+      ctx.output('pullRequestCreated', pullRequestCreated);
+      if (branchName) {
+        ctx.output('branchName', branchName);
+      }
+      
+    } catch (error) {
+      ctx.logger.error(`❌ Failed to generate pipeline: ${error}`);
+      throw error;
     }
   },
 });
