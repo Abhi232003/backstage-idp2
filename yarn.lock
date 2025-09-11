@@ -5890,6 +5890,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@google/generative-ai@npm:^0.24.1":
+  version: 0.24.1
+  resolution: "@google/generative-ai@npm:0.24.1"
+  checksum: 10c0/8da77fc648b04fc2ecef53e75230e2ee67a8fd29a34b6b8874e77a7332b2a1e4b51d44dd9eb604fb063ed8ea46d293aac5b1e2a955ae2435e2582a265f2cb80d
+  languageName: node
+  linkType: hard
+
 "@graphiql/react@npm:^0.20.3":
   version: 0.20.4
   resolution: "@graphiql/react@npm:0.20.4"
@@ -30483,6 +30490,8 @@ __metadata:
     "@backstage/plugin-scaffolder-backend": "npm:^2.2.0"
     "@backstage/plugin-scaffolder-common": "npm:^1.7.0"
     "@backstage/types": "npm:^1.2.1"
+    "@google/generative-ai": "npm:^0.24.1"
+    "@octokit/rest": "npm:^22.0.0"
     "@playwright/test": "npm:^1.32.3"
     cross-env: "npm:^10.0.0"
     dotenv: "npm:^17.2.1"

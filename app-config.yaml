@@ -1,19 +1,21 @@
 app:
   title: Scaffolded Backstage App
+  #baseUrl: http://192.168.29.223:3000
   baseUrl: http://localhost:3000
 
 organization:
-  name: ZensarIDP
+  name: Aditya-711
 
 backend:
   # Used for enabling authentication, secret is shared by all backend plugins
   # See https://backstage.io/docs/auth/service-to-service-auth for
   # information on the format
-  # auth:
-  #   keys:
-  #     - secret: ${BACKEND_SECRET}
+  auth:
+    dangerouslyDisableDefaultAuthPolicy: true
   baseUrl: http://localhost:7007
+  #baseUrl: http://192.168.29.223:7007
   listen:
+    host: 0.0.0.0
     port: 7007
     # Uncomment the following host directive to bind to specific interfaces
     # host: 127.0.0.1
@@ -21,7 +23,8 @@ backend:
     connect-src: ["'self'", 'http:', 'https:']
     # Content-Security-Policy directives follow the Helmet format: https://helmetjs.github.io/#reference
     # Default Helmet Content-Security-Policy values can be removed by setting the key to false
-  cors:
+  cors: 
+    #origin: http://192.168.29.223:3000
     origin: http://localhost:3000
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
     credentials: true
@@ -34,9 +37,7 @@ integrations:
     - host: github.com
       token: 
   
-  bitbucketCloud:
-    - username: abhi232003-admin
-      appPassword: 
+
 
 techdocs:
   builder: 'local'
@@ -48,18 +49,25 @@ techdocs:
 auth:
   environment: development
   providers:
-    guest: {}
     github:
       development:
-        clientId: 
-        clientSecret: 
+        clientId: Ov23liv38BR3zE6d6ziuJ
+        clientSecret: 18d63772181f50bd1cbb8b1623d8bd596a9590ddb
+        enterpriseInstanceUrl: # This can be omitted for github.com
         signIn:
+          enabled: true
           resolvers:
             - resolver: usernameMatchingUserEntityName
+              source: github
+              config:
+                match:
+                  - type: 'url'
+                    pattern: 'https://github.com/Aditya-711'
+    guest: {}
     bitbucket:
       development:
-        clientId: ${BITBUCKET_CLIENT_ID}
-        clientSecret: ${BITBUCKET_CLIENT_SECRET}
+        clientId: # Add your Bitbucket OAuth client ID
+        clientSecret: # Add your Bitbucket OAuth client secret
         signIn:
           resolvers:
             - resolver: usernameMatchingUserEntityName
@@ -68,11 +76,14 @@ scaffolder:
   # see https://backstage.io/docs/features/software-templates/configuration for software template options
   github:
     visibility: public # or 'private', 'internal'
-    allowedOwners: ['ZensarIDP', 'Abhi232003'] # ZensarIDP org and Abhi232003 user
+    allowedOwners: ['ZensarIDP', 'Abhi232003','Aditya-711'] # ZensarIDP org and Abhi232003 user
+
+  secrets:
+    github:
+      token: ${GITHUB_TOKEN}
+
   
-  bitbucketCloud:
-    visibility: public # or 'private'
-    allowedWorkspaces: ['zensaridp'] # Bitbucket workspace
+
   
   defaultAuthor:
     name: Backstage Scaffolder
@@ -80,32 +91,44 @@ scaffolder:
   defaultCommitMessage: 'Initial commit'
 
 catalog:
+  processingInterval: {seconds: 5}
   import:
     entityFilename: catalog-info.yaml
     pullRequestBranchName: backstage-integration
   rules:
-    - allow: [Component, System, API, Resource, Location]
+    - allow: [Component, System, API, Resource, Location, Template]
   locations:
     # Local example data, file locations are relative to the backend process, typically `packages/backend`
     - type: file
       target: ../../examples/entities.yaml
 
-    # Local example template
+    # Templates
     - type: file
-      target: ../../examples/template/template.yaml
+      target: ../../templates/aws-s3-provisioner/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ../../templates/aws-ec2-provisioner/template.yaml
       rules:
         - allow: [Template]
 
-
-    # Node.js starter template
     - type: file
-      target: ../../templates/nodejs-template/template.yaml
+      target: ../../templates/aws-ec2-scripts-executer/template.yaml
       rules:
         - allow: [Template]
 
-    # AI Pipeline Generator template
     - type: file
-      target: ../../templates/ai-pipeline-generator.yaml
+      target: ../../templates/aws-iam-provisioner/template.yaml
+      rules:
+        - allow: [Template]
+
+    - type: file
+      target: ../../templates/*/template.yaml
+      rules:
+        - allow: [Template]
+
+    - type: file
+      target: ../../packages/backend/templates/*/template.yaml
       rules:
         - allow: [Template]
 
@@ -122,12 +145,28 @@ catalog:
 
     # GitHub specific repository discovery - discovers specific repositories
     # Add your repository URLs here
-    - type: url
-      target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/all.yaml
-    - type: url
-      target: https://github.com/Abhi232003/backstage-idp/blob/main/catalog-info.yaml
+    # - type: url
+    #   target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/all.yaml
+    # - type: url
+    #   target: https://github.com/ZensarIDP/backstage-idp/blob/main/catalog-info.yaml
+    # - type: url
+    #   target: https://github.com/Aditya-711/backstage_ssa_workflows
 
+    
+  # Enable real-time processing
+  incremental:
+    enabled: true
+    # Force immediate processing
+    pollingIntervalMs: 1000
+    
+# Add backend processing configuration
+
+  csp:
+    # Allow cache control
+    directives:
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
 # see https://backstage.io/docs/permissions/getting-started for more on the permission framework
 permission:
   # setting this to `false` will disable permissions
   enabled: true
+

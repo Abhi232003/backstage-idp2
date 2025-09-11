@@ -7,7 +7,8 @@
  */
 import { createBackend } from '@backstage/backend-defaults';
 import scaffolderPlugins from './plugins/scaffolder';
-
+import * as dotenv from 'dotenv';
+dotenv.config();
 const backend = createBackend();
 
 backend.add(import('@backstage/plugin-app-backend'));

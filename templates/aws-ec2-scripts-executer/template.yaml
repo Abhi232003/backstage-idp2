@@ -1,0 +1,93 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: execute-ec2-script
+  title: Execute Script on EC2 Instance
+  description: Executes a custom script on an existing EC2 instance using AWS Systems Manager
+  tags:
+    - aws
+    - ec2
+    - script
+    - automation
+    - self-service-action
+spec:
+  owner: platform-team
+  type: infrastructure
+  parameters:
+    - title: EC2 Script Execution Details
+      required:
+        - instanceId
+        - script
+      properties:
+        instanceId:
+          title: EC2 Instance ID
+          type: string
+          description: ID of the EC2 instance to execute the script on (e.g., i-1234567890abcdef0)
+          pattern: ^i-[0-9a-f]{8}([0-9a-f]{9})?$
+        script:
+          title: Script Content
+          type: string
+          description: The script to execute on the EC2 instance (bash/shell commands)
+          ui:widget: textarea
+          ui:options:
+            rows: 10
+          default: |
+            #!/bin/bash
+            # Add your script here
+            echo "Hello from EC2 instance!"
+            whoami
+            pwd
+            ls -la
+        scriptType:
+          title: Script Type
+          type: string
+          description: Type of script interpreter to use
+          enum:
+            - bash
+            - powershell
+          enumNames:
+            - 'Bash/Shell Script (Linux)'
+            - 'PowerShell Script (Windows)'
+          default: bash
+        region:
+          title: AWS Region
+          type: string
+          description: AWS region where the EC2 instance is located
+          enum:
+            - us-east-1
+            - us-east-2
+            - us-west-1
+            - us-west-2
+            - eu-west-1
+            - eu-central-1
+            - ap-south-1
+            - ap-southeast-1
+          default: us-east-1
+
+
+  steps:
+    - id: trigger-workflow
+      name: Trigger GitHub Workflow
+      action: github:workflows:dispatch
+      input:
+        repoUrl: https://github.com/Aditya-711/backstage_ssa_workflows
+        workflowPath: execute-scripts-ec2.yml
+        branchOrTagName: master
+        workflowInputs:
+          instance_id: ${{ parameters.instanceId }}
+          script_content: ${{ parameters.script }}
+          script_type: ${{ parameters.scriptType }}
+          region: ${{ parameters.region }}
+
+    - id: wait
+      name: Executing Script
+      action: debug:log
+      input:
+        message: "🚀 Executing script on EC2 instance ${{ parameters.instanceId }} in region ${{ parameters.region }}..."
+
+  output:
+    links:
+      - title: AWS Console - EC2 Instance
+        url: https://${{ parameters.region }}.console.aws.amazon.com/ec2/home?region=${{ parameters.region }}#InstanceDetails:instanceId=${{ parameters.instanceId }}
+      - title: AWS Console - Systems Manager Run Command
+        url: https://${{ parameters.region }}.console.aws.amazon.com/systems-manager/run-command/executing-commands?region=${{ parameters.region }}

@@ -1,0 +1,59 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: provision-s3-bucket
+  title: Provision AWS S3 Bucket
+  description: Creates a new S3 bucket in AWS
+  tags:
+    - aws
+    - s3
+    - storage
+    - self-service-action
+spec:
+  owner: platform-team
+  type: infrastructure
+  parameters:
+    - title: S3 Bucket Details
+      required:
+        - bucketName
+        - region
+      properties:
+        bucketName:
+          title: Bucket Name
+          type: string
+          description: Name of the S3 bucket to create (must be globally unique)
+          pattern: ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$
+        region:
+          title: AWS Region
+          type: string
+          description: AWS region where the bucket will be created
+          enum:
+            - us-east-1
+            - us-east-2
+            - us-west-1
+            - us-west-2
+            - eu-west-1
+          default: us-east-1
+
+  steps:
+    - id: trigger-workflow
+      name: Trigger GitHub Workflow
+      action: github:workflows:dispatch
+      input:
+        repoUrl: https://github.com/Aditya-711/backstage_ssa_workflows
+        workflowPath: create-s3.yml
+        branchOrTagName: master
+        workflowInputs:
+          bucketName: ${{ parameters.bucketName }}
+          region: ${{ parameters.region }}
+
+    - id: wait
+      name: Waiting for Bucket Creation
+      action: debug:log
+      input:
+        message: "🚀 Creating S3 bucket ${{ parameters.bucketName }} in region ${{ parameters.region }}..."
+
+  output:
+    links:
+      - title: AWS Console - S3 Bucket
+        url: https://${{ parameters.region }}.console.aws.amazon.com/s3/buckets/${{ parameters.bucketName }}

@@ -75,6 +75,7 @@ export const Root = ({ children }: PropsWithChildren<{}>) => (
         <SidebarItem icon={ExtensionIcon} to="api-docs" text="APIs" />
         <SidebarItem icon={LibraryBooks} to="docs" text="Docs" />
         <SidebarItem icon={CreateComponentIcon} to="create" text="Create..." />
+        {/* <SidebarItem icon={ExtensionIcon} to="create?filters%5Bkind%5D=template&filters%5Btags%5D=self-service-action&filters%5Buser%5D=all" text='Self-Service Action'/> */}
         {/* End global nav */}
         <SidebarDivider />
         <SidebarScrollWrapper>
