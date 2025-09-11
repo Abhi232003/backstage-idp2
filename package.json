@@ -61,6 +61,8 @@
     "@backstage/plugin-catalog-backend-module-github-org": "^0.3.13",
     "@backstage/plugin-scaffolder-backend": "^2.2.0",
     "@backstage/plugin-scaffolder-common": "^1.7.0",
-    "@backstage/types": "^1.2.1"
+    "@backstage/types": "^1.2.1",
+    "@google/generative-ai": "^0.24.1",
+    "@octokit/rest": "^22.0.0"
   }
 }

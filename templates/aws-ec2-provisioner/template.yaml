@@ -1,0 +1,71 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: provision-ec2-instance
+  title: Launch AWS EC2 Instance
+  description: Creates a new EC2 instance in AWS
+  tags:
+    - aws
+    - ec2
+    - compute
+    - self-service-action
+spec:
+  owner: platform-team
+  type: infrastructure
+  parameters:
+    - title: EC2 Instance Details
+      required:
+        - instanceName
+        - instanceType
+        - region
+      properties:
+        instanceName:
+          title: Instance Name
+          type: string
+          description: Name tag for the EC2 instance
+          pattern: ^[a-zA-Z0-9-_]+$
+        instanceType:
+          title: Instance Type
+          type: string
+          description: The EC2 instance type that determines CPU, memory, and other resources
+          enum:
+            - t2.nano
+            - t2.micro
+            - t2.small
+            - t2.medium
+          default: t2.micro
+        region:
+          title: AWS Region
+          type: string
+          description: AWS region where the bucket will be created
+          enum:
+            - us-east-1
+            - us-east-2
+            - us-west-1
+            - us-west-2
+            - eu-west-1
+          default: us-east-1
+
+  steps:
+    - id: trigger-workflow
+      name: Trigger GitHub Workflow
+      action: github:workflows:dispatch
+      input:
+        repoUrl: https://github.com/Aditya-711/backstage_ssa_workflows
+        workflowPath: create-ec2.yml
+        branchOrTagName: master
+        workflowInputs:
+          instance_name: ${{ parameters.instanceName }}
+          instance_type: ${{ parameters.instanceType }}
+          region: ${{ parameters.region }}
+
+    - id: wait
+      name: Waiting for Instance Launch
+      action: debug:log
+      input:
+        message: "🚀 Launching EC2 instance ${{ parameters.instanceName }} of type ${{ parameters.instanceType }}..."
+
+  output:
+    links:
+      - title: AWS Console - EC2 Instance
+        url: https://console.aws.amazon.com/ec2/v2/home#Instances

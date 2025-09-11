@@ -11,12 +11,12 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: User
 metadata:
-  name: Abhi232003
+  name: Aditya-711
   annotations:
-    github.com/user-login: Abhi232003
+    github.com/user-login: Aditya-711
 spec:
   profile:
-    displayName: Abhi232003
+    displayName: Aditya-711
   memberOf: [developers]
 ---
 # https://backstage.io/docs/features/software-catalog/descriptor-format#kind-group
