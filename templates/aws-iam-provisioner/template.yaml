@@ -1,0 +1,89 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: provision-iam-permission
+  title: Attach IAM Policy to User
+  description: Attaches an IAM policy to a user in AWS
+  tags:
+    - aws
+    - iam
+    - policy
+    - security
+    - self-service-action
+spec:
+  owner: platform-team
+  type: infrastructure
+  parameters:
+    - title: IAM Permission Details
+      required:
+        - userName
+        - policyType
+      properties:
+        userName:
+          title: AWS User Name
+          type: string
+          description: Name of the existing AWS IAM user to attach the policy to
+          pattern: ^[a-zA-Z0-9+=,.@_-]+$
+        policyType:
+          title: Permission Type
+          type: string
+          description: Select the type of permission to grant to the user
+          enum:
+            - S3FullAccess
+            - S3ReadOnlyAccess
+            - EC2FullAccess
+            - EC2ReadOnlyAccess
+            - RDSFullAccess
+            - RDSReadOnlyAccess
+            - IAMReadOnlyAccess
+            - LambdaFullAccess
+            - CloudWatchReadOnlyAccess
+            - AdministratorAccess
+          enumNames:
+            - 'S3 Full Access'
+            - 'S3 Read Only Access'
+            - 'EC2 Full Access'
+            - 'EC2 Read Only Access'
+            - 'RDS Full Access'
+            - 'RDS Read Only Access'
+            - 'IAM Read Only Access'
+            - 'Lambda Full Access'
+            - 'CloudWatch Read Only Access'
+          default: S3ReadOnlyAccess
+        region:
+          title: AWS Region
+          type: string
+          description: AWS region for IAM operations
+          enum:
+            - us-east-1
+            - us-east-2
+            - us-west-1
+            - us-west-2
+            - eu-west-1
+          default: us-east-1
+
+  steps:
+    - id: trigger-workflow
+      name: Trigger GitHub Workflow
+      action: github:workflows:dispatch
+      input:
+        repoUrl: https://github.com/Aditya-711/backstage_ssa_workflows
+        workflowPath: attach-iam-permissions.yml
+        branchOrTagName: master
+        workflowInputs:
+          userName: ${{ parameters.userName }}
+          policyType: ${{ parameters.policyType }}
+          region: ${{ parameters.region }}
+
+    - id: wait
+      name: Attaching Policy
+      action: debug:log
+      input:
+        message: "🔐 Attaching ${{ parameters.policyType }} policy to user ${{ parameters.userName }}..."
+
+  output:
+    links:
+      - title: AWS Console - IAM Users
+        url: https://console.aws.amazon.com/iam/home#/users/${{ parameters.userName }}
+      - title: AWS Console - IAM Policies
+        url: https://console.aws.amazon.com/iam/home#/policies

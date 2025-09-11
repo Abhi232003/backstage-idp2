@@ -1,0 +1,130 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: ai-template-generator
+  title: AI Template Generation
+  description: Generate new Backstage templates and GitHub Actions workflows using AI
+  tags:
+    - ai
+    - template-generator
+    - self-service
+    - automation
+spec:
+  owner: platform-team
+  type: service
+  parameters:
+    - title: Template Requirements
+      required:
+        - templatePrompt
+        - templateName
+        - templateTitle
+      properties:
+        templatePrompt:
+          title: Describe Your Template
+          type: string
+          description: Describe what you want your template to do
+          ui:widget: textarea
+          ui:options:
+            rows: 5
+        templateName:
+          title: Template Name
+          type: string
+          description: Internal name for the template (lowercase, hyphens only)
+          pattern: ^[a-z0-9-]+$
+        templateTitle:
+          title: Template Display Title
+          type: string
+          description: Human-readable title shown in Backstage UI
+        templateDescription:
+          title: Template Description
+          type: string
+          description: Brief description of what the template does
+        infrastructureType:
+          title: Infrastructure Type
+          type: string
+          description: What type of infrastructure does this template provision?
+          enum:
+            - aws
+            - gcp
+            - azure
+            - kubernetes
+          default: aws
+        workflowRepo:
+          title: Workflow Repository
+          type: string
+          description: GitHub repository where workflow files will be stored
+          default: "Aditya-711/backstage_ssa_workflows"
+
+  steps:
+    - id: generate-template
+      name: 🤖 Generate Template with AI
+      action: ai:generate-template
+      input:
+        templatePrompt: ${{ parameters.templatePrompt }}
+        templateName: ${{ parameters.templateName }}
+        templateTitle: ${{ parameters.templateTitle }}
+        templateDescription: ${{ parameters.templateDescription }}
+        infrastructureType: ${{ parameters.infrastructureType }}
+        workflowRepo: ${{ parameters.workflowRepo }}
+
+    - id: create-template-files
+      name: 📝 Create Template Files Locally
+      action: fetch:template
+      input:
+        url: ./skeleton
+        #targetPath: ./templates/${{ parameters.templateName }}
+        values:
+          templateName: ${{ parameters.templateName }}
+          templateTitle: ${{ parameters.templateTitle }}
+          templateDescription: ${{ parameters.templateDescription }}
+          templateContent: ${{ steps['generate-template'].output.templateContent }}
+          workflowContent: ${{ steps['generate-template'].output.workflowContent }}
+          workflowFileName: ${{ steps['generate-template'].output.workflowFileName }}
+
+    - id: create-workflow-file
+      name: 🚀 Publish Workflow to GitHub
+      action: github:actions:create-workflow
+      input:
+        repoUrl: https://github.com/${{ parameters.workflowRepo }}
+        workflowContent: ${{ steps['generate-template'].output.workflowContent }}
+        workflowFileName: ${{ steps['generate-template'].output.workflowFileName }}
+        commitMessage: "feat: add workflow for ${{ parameters.templateName }} template"
+
+    - id: write-template-file
+      name: 📁 Write Template to Local Directory
+      action: fs:write
+      input:
+        path: templates/${{ parameters.templateName }}/template.yaml
+        content: ${{ steps['generate-template'].output.templateContent }}
+
+ 
+
+    - id: cache-refresh
+      name: Trigger cache refresh
+      action: cache:bust
+      input:
+        templateName: ${{ parameters.templateName }}
+
+    - id: show-results
+      name: 📋 Show Generated Content
+      action: debug:log
+      input:
+        message: |
+          ✅ Template and workflow generated successfully!
+          
+          📁 Template created locally at: templates/${{ parameters.templateName }}/
+          📝 Template Title: ${{ parameters.templateTitle }}
+          ⚙️ Workflow published to: ${{ parameters.workflowRepo }}/.github/workflows/${{ steps['generate-template'].output.workflowFileName }}
+          
+          🔧 Template is now available in Backstage!
+          🚀 Workflow is ready to be triggered from the template!
+
+  output:
+    links:
+      - title: 📁 Local Template Directory
+        url: file://./templates/${{ parameters.templateName }}/
+      - title: ⚙️ GitHub Workflow
+        url: https://github.com/${{ parameters.workflowRepo }}/blob/main/.github/workflows/${{ steps['generate-template'].output.workflowFileName }}
+      - title: 🎯 View in Backstage Catalog
+        icon: catalog
+        entityRef: template:${{ parameters.templateName }}

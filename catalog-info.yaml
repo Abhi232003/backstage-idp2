@@ -1,13 +1,12 @@
 apiVersion: backstage.io/v1alpha1
-kind: Component
+kind: User
 metadata:
-  name: backstage
+  name: Aditya-711
   description: An example of a Backstage application.
-  # Example for optional annotations
-  # annotations:
-  #   github.com/project-slug: backstage/backstage
-  #   backstage.io/techdocs-ref: dir:.
+  annotations:
+    # This annotation MUST also match your GitHub username
+    github.com/user-login: Aditya-711
 spec:
-  type: website
-  owner: khodadeabhishek@gmail.com
-  lifecycle: experimental
+  profile:
+    displayName: Aditya Inamdar
+    email: adityainamdar711@gmail.com   # optional, for profile
