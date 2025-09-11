@@ -35,8 +35,9 @@ backend:
 integrations:
   github:
     - host: github.com
-      token: ${GITHUB_TOKEN}
+      token: 
   
+
 
 techdocs:
   builder: 'local'
@@ -50,8 +51,8 @@ auth:
   providers:
     github:
       development:
-        clientId: Ov23liv38BR3zE66ziuJ
-        clientSecret: 18d63772181f50b1cbb8b1623d8bd596a9590ddb
+        clientId: Ov23liv38BR3zE6d6ziuJ
+        clientSecret: 18d63772181f50bd1cbb8b1623d8bd596a9590ddb
         enterpriseInstanceUrl: # This can be omitted for github.com
         signIn:
           enabled: true
